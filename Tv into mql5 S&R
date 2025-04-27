@@ -1,0 +1,260 @@
+//+------------------------------------------------------------------+
+//|                                 BIN Based Support and Resistance |
+//|                                     Converted from Pine Script by|
+//|                                              Steversteves       |
+//+------------------------------------------------------------------+
+#property indicator_chart_window
+#property indicator_buffers 0
+#property indicator_plots   0
+
+input int      Lookback = 500;          // Lookback Length
+input string   DisplayLabel = "On SR lines"; // Where would you like the statistics to display?
+input int      Offset = 100;            // Offset the lines ahead
+
+// Colors for gradient lines
+color GradientColors[] = {C'255,0,200', C'225,0,255', C'13,0,255', C'0,123,255', 
+                          C'0,255,213', C'0,255,21', C'0,255,21', C'255,196,0', 
+                          C'255,119,0', C'255,21,0', C'255,0,140', C'227,0,11'};
+
+// Arrays to store SR levels and statistics
+double SRArray[12];
+double SupportSuccessArray[12];
+double ResistanceSuccessArray[12];
+int    NumArray[12] = {1,2,3,4,5,6,7,8,9,10,11,12};
+
+//+------------------------------------------------------------------+
+//| Custom indicator initialization function                         |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   // Initialize number array
+   for(int i=0; i<12; i++)
+      NumArray[i] = i+1;
+      
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Calculate array average                                          |
+//+------------------------------------------------------------------+
+double ArrayAverage(double &arr[])
+{
+   if(ArraySize(arr) == 0) return 0;
+   
+   double sum = 0;
+   for(int i=0; i<ArraySize(arr); i++)
+      sum += arr[i];
+      
+   return sum/ArraySize(arr);
+}
+
+//+------------------------------------------------------------------+
+//| Calculate statistics for a given level                           |
+//+------------------------------------------------------------------+
+void CalculateStatistics(double level, int lookback, const double &high[], const double &low[], const double &close[], double &out[])
+{
+   int reject_bull = 0;
+   int reject_bear = 0;
+   
+   for(int i=2; i<lookback; i++)
+   {
+      if(high[i-2] >= level && close[i] < level)
+         reject_bull++;
+      if(low[i-2] <= level && close[i] > level)
+         reject_bear++;
+   }
+   
+   double total = reject_bear + reject_bull;
+   if(total == 0) total = 1; // Prevent division by zero
+   
+   out[0] = (reject_bear / total) * 100; // Support success
+   out[1] = (reject_bull / total) * 100; // Resistance success
+}
+
+//+------------------------------------------------------------------+
+//| Change color alpha                                               |
+//+------------------------------------------------------------------+
+color ChangeColorAlpha(color clr, int alpha)
+{
+   // Ensure alpha is within valid range (0-255)
+   alpha = MathMin(255, MathMax(0, alpha));
+   
+   // Clear existing alpha and apply new alpha
+   return((color)((clr & 0x00FFFFFF) | (alpha << 24)));
+}
+
+//+------------------------------------------------------------------+
+//| Custom indicator iteration function                              |
+//+------------------------------------------------------------------+
+int OnCalculate(const int rates_total,
+                const int prev_calculated,
+                const datetime &time[],
+                const double &open[],
+                const double &high[],
+                const double &low[],
+                const double &close[],
+                const long &tick_volume[],
+                const long &volume[],
+                const int &spread[])
+{
+   // Only calculate on new bars
+   if(prev_calculated == rates_total) return(rates_total);
+   
+   // Calculate min and max over lookback period
+   double max = high[ArrayMaximum(high, 0, Lookback)];
+   double min = low[ArrayMinimum(low, 0, Lookback)];
+   
+   double bins = (max - min) / 10;
+   
+   // Calculate bin levels
+   double lbin1 = min + bins;
+   double lbin2 = lbin1 + bins;
+   double lbin3 = lbin2 + bins;
+   double lbin4 = lbin3 + bins;
+   double lbin5 = lbin4 + bins;
+   double ubin10 = max - bins;
+   double ubin9 = ubin10 - bins;
+   double ubin8 = ubin9 - bins;
+   double ubin7 = ubin8 - bins;
+   double ubin6 = ubin7 - bins;
+   
+   // Arrays to store close prices in each bin
+   double bin1a[], bin2a[], bin3a[], bin4a[], bin5a[], bin6a[], bin7a[], bin8a[], bin9a[], bin10a[];
+   
+   // Classify prices into bins
+   for(int i=0; i<Lookback; i++)
+   {
+      if(close[i] >= min && close[i] < lbin1)
+      {
+         ArrayResize(bin1a, ArraySize(bin1a)+1);
+         bin1a[ArraySize(bin1a)-1] = close[i];
+      }
+      else if(close[i] >= lbin1 && close[i] < lbin2)
+      {
+         ArrayResize(bin2a, ArraySize(bin2a)+1);
+         bin2a[ArraySize(bin2a)-1] = close[i];
+      }
+      else if(close[i] >= lbin2 && close[i] < lbin3)
+      {
+         ArrayResize(bin3a, ArraySize(bin3a)+1);
+         bin3a[ArraySize(bin3a)-1] = close[i];
+      }
+      else if(close[i] >= lbin3 && close[i] < lbin4)
+      {
+         ArrayResize(bin4a, ArraySize(bin4a)+1);
+         bin4a[ArraySize(bin4a)-1] = close[i];
+      }
+      else if(close[i] >= lbin4 && close[i] < lbin5)
+      {
+         ArrayResize(bin5a, ArraySize(bin5a)+1);
+         bin5a[ArraySize(bin5a)-1] = close[i];
+      }
+      else if(close[i] >= lbin5 && close[i] < ubin6)
+      {
+         ArrayResize(bin6a, ArraySize(bin6a)+1);
+         bin6a[ArraySize(bin6a)-1] = close[i];
+      }
+      else if(close[i] >= ubin6 && close[i] < ubin7)
+      {
+         ArrayResize(bin7a, ArraySize(bin7a)+1);
+         bin7a[ArraySize(bin7a)-1] = close[i];
+      }
+      else if(close[i] >= ubin7 && close[i] < ubin8)
+      {
+         ArrayResize(bin8a, ArraySize(bin8a)+1);
+         bin8a[ArraySize(bin8a)-1] = close[i];
+      }
+      else if(close[i] >= ubin8 && close[i] < ubin9)
+      {
+         ArrayResize(bin9a, ArraySize(bin9a)+1);
+         bin9a[ArraySize(bin9a)-1] = close[i];
+      }
+      else if(close[i] >= ubin10)
+      {
+         ArrayResize(bin10a, ArraySize(bin10a)+1);
+         bin10a[ArraySize(bin10a)-1] = close[i];
+      }
+   }
+   
+   // Calculate SR levels as averages
+   SRArray[0] = ArrayAverage(bin1a);
+   SRArray[1] = ArrayAverage(bin2a);
+   SRArray[2] = ArrayAverage(bin3a);
+   SRArray[3] = ArrayAverage(bin4a);
+   SRArray[4] = ArrayAverage(bin5a);
+   SRArray[5] = ArrayAverage(bin6a);
+   SRArray[6] = ArrayAverage(bin7a);
+   SRArray[7] = ArrayAverage(bin8a);
+   SRArray[8] = ArrayAverage(bin9a);
+   SRArray[9] = ArrayAverage(bin10a);
+   SRArray[10] = max;
+   SRArray[11] = min;
+   
+   // Calculate statistics for each SR level
+   for(int i=0; i<12; i++)
+   {
+      double ss_rs[2];
+      CalculateStatistics(SRArray[i], Lookback, high, low, close, ss_rs);
+      SupportSuccessArray[i] = ss_rs[0];
+      ResistanceSuccessArray[i] = ss_rs[1];
+   }
+   
+   // Delete existing objects
+   ObjectsDeleteAll(0, -1, OBJ_TREND);
+   ObjectsDeleteAll(0, -1, OBJ_LABEL);
+   
+   datetime start_time = iTime(NULL, 0, rates_total - Lookback);
+   datetime end_time = iTime(NULL, 0, rates_total + Offset);
+   
+   // Draw lines
+   for(int i=0; i<12; i++)
+   {
+      string line_name = "SR_Line_"+IntegerToString(i);
+      ObjectCreate(0, line_name, OBJ_TREND, 0, start_time, SRArray[i], end_time, SRArray[i]);
+      ObjectSetInteger(0, line_name, OBJPROP_COLOR, GradientColors[i]);
+      ObjectSetInteger(0, line_name, OBJPROP_WIDTH, 1);
+      ObjectSetInteger(0, line_name, OBJPROP_STYLE, STYLE_SOLID);
+      ObjectSetInteger(0, line_name, OBJPROP_RAY, false);
+      
+      // Additional thicker semi-transparent lines
+      string line_name2 = line_name+"_2";
+      ObjectCreate(0, line_name2, OBJ_TREND, 0, start_time, SRArray[i], end_time, SRArray[i]);
+      ObjectSetInteger(0, line_name2, OBJPROP_COLOR, ChangeColorAlpha(GradientColors[i], 70));
+      ObjectSetInteger(0, line_name2, OBJPROP_WIDTH, 3);
+      
+      string line_name3 = line_name+"_3";
+      ObjectCreate(0, line_name3, OBJ_TREND, 0, start_time, SRArray[i], end_time, SRArray[i]);
+      ObjectSetInteger(0, line_name3, OBJPROP_COLOR, ChangeColorAlpha(GradientColors[i], 80));
+      ObjectSetInteger(0, line_name3, OBJPROP_WIDTH, 6);
+      
+      string line_name4 = line_name+"_4";
+      ObjectCreate(0, line_name4, OBJ_TREND, 0, start_time, SRArray[i], end_time, SRArray[i]);
+      ObjectSetInteger(0, line_name4, OBJPROP_COLOR, ChangeColorAlpha(GradientColors[i], 95));
+      ObjectSetInteger(0, line_name4, OBJPROP_WIDTH, 8);
+      
+      // Create labels if needed
+      if(DisplayLabel == "On SR lines")
+      {
+         string label_text = "% Support: "+DoubleToString(SupportSuccessArray[i],2)+
+                           "\n% Resistance: "+DoubleToString(ResistanceSuccessArray[i],2);
+         string label_name = "Label_"+IntegerToString(i);
+         ObjectCreate(0, label_name, OBJ_LABEL, 0, end_time, SRArray[i]);
+         ObjectSetString(0, label_name, OBJPROP_TEXT, label_text);
+         ObjectSetInteger(0, label_name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+         ObjectSetInteger(0, label_name, OBJPROP_COLOR, clrWhite);
+         ObjectSetInteger(0, label_name, OBJPROP_FONTSIZE, 10);
+      }
+      else if(DisplayLabel == "Table")
+      {
+         // Create small labels on lines
+         string num_label_name = "NumLabel_"+IntegerToString(i);
+         ObjectCreate(0, num_label_name, OBJ_LABEL, 0, end_time, SRArray[i]);
+         ObjectSetString(0, num_label_name, OBJPROP_TEXT, IntegerToString(NumArray[i]));
+         ObjectSetInteger(0, num_label_name, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+         ObjectSetInteger(0, num_label_name, OBJPROP_COLOR, clrWhite);
+         ObjectSetInteger(0, num_label_name, OBJPROP_FONTSIZE, 10);
+      }
+   }
+   
+   return(rates_total);
+}
