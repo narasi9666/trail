@@ -1,0 +1,99 @@
+//+------------------------------------------------------------------+
+//|                                                  XAU Scalper.mq5 |
+//+------------------------------------------------------------------+
+#property indicator_chart_window
+#property indicator_buffers 2
+#property indicator_plots   2
+
+//--- plot Buy
+#property indicator_label1  "Buy Signal"
+#property indicator_type1   DRAW_ARROW
+#property indicator_color1  Lime
+#property indicator_width1  2
+
+//--- plot Sell
+#property indicator_label2  "Sell Signal"
+#property indicator_type2   DRAW_ARROW
+#property indicator_color2  Red
+#property indicator_width2  2
+
+//--- buffers
+double BuyBuffer[];
+double SellBuffer[];
+
+//--- settings
+input int FastMAPeriod = 5;
+input int SlowMAPeriod = 20;
+
+//--- handles
+int FastMAHandle;
+int SlowMAHandle;
+
+//+------------------------------------------------------------------+
+//| Custom indicator initialization function                         |
+//+------------------------------------------------------------------+
+int OnInit()
+  {
+   //--- indicator buffers mapping
+   SetIndexBuffer(0, BuyBuffer, INDICATOR_DATA);
+   SetIndexBuffer(1, SellBuffer, INDICATOR_DATA);
+
+   //--- create Moving Average handles
+   FastMAHandle = iMA(_Symbol, _Period, FastMAPeriod, 0, MODE_SMA, PRICE_CLOSE);
+   SlowMAHandle = iMA(_Symbol, _Period, SlowMAPeriod, 0, MODE_SMA, PRICE_CLOSE);
+
+   if (FastMAHandle == INVALID_HANDLE || SlowMAHandle == INVALID_HANDLE)
+   {
+      Print("Error creating iMA handles");
+      return INIT_FAILED;
+   }
+
+   return INIT_SUCCEEDED;
+  }
+//+------------------------------------------------------------------+
+//| Custom indicator iteration function                              |
+//+------------------------------------------------------------------+
+int OnCalculate(const int rates_total,
+                const int prev_calculated,
+                const datetime &time[],
+                const double &open[],
+                const double &high[],
+                const double &low[],
+                const double &close[],
+                const long &tick_volume[],
+                const long &volume[],
+                const int &spread[])
+  {
+   if (rates_total < SlowMAPeriod)
+      return 0;
+
+   //--- create arrays
+   static double FastMA[], SlowMA[];
+   ArraySetAsSeries(FastMA, true);
+   ArraySetAsSeries(SlowMA, true);
+
+   //--- copy MA data
+   if (CopyBuffer(FastMAHandle, 0, 0, rates_total, FastMA) <= 0) return 0;
+   if (CopyBuffer(SlowMAHandle, 0, 0, rates_total, SlowMA) <= 0) return 0;
+
+   int limit = rates_total - prev_calculated;
+   if (limit > rates_total - 1)
+      limit = rates_total - 1;
+
+   for (int i = limit; i >= 1; i--)
+   {
+      BuyBuffer[i] = EMPTY_VALUE;
+      SellBuffer[i] = EMPTY_VALUE;
+
+      // Buy Signal
+      if (FastMA[i] > SlowMA[i] && FastMA[i-1] <= SlowMA[i-1])
+         BuyBuffer[i] = low[i] - (0.5 * _Point);
+
+      // Sell Signal
+      if (FastMA[i] < SlowMA[i] && FastMA[i-1] >= SlowMA[i-1])
+         SellBuffer[i] = high[i] + (0.5 * _Point);
+   }
+
+   return rates_total;
+  }
+//+------------------------------------------------------------------+
